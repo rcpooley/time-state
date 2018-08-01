@@ -1,0 +1,37 @@
+{
+  "name": "time-state",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "babel-watch --watch src src/index.js",
+    "build": "rimraf ./dist && babel src/ test/ -d dist --copy-files",
+    "prepare": "npm run build",
+    "flow": "flow",
+    "lint": "eslint src/** test/**",
+    "flint": "npm run flow && npm run lint",
+    "test": "npm run build && mocha dist/**/*.test.js"
+  },
+  "keywords": [],
+  "author": "rcpooley",
+  "license": "ISC",
+  "devDependencies": {
+    "babel-cli": "^6.26.0",
+    "babel-eslint": "^8.2.6",
+    "babel-preset-env": "^1.7.0",
+    "babel-preset-flow": "^6.23.0",
+    "babel-watch": "^2.0.7",
+    "chai": "^4.1.2",
+    "eslint": "^4.19.1",
+    "eslint-config-airbnb-base": "^13.0.0",
+    "eslint-plugin-flowtype": "^2.50.0",
+    "eslint-plugin-import": "^2.13.0",
+    "eslint-plugin-mocha": "^5.1.0",
+    "flow-bin": "^0.77.0",
+    "mocha": "^5.2.0",
+    "rimraf": "^2.6.2"
+  },
+  "dependencies": {
+    "mongoose": "^5.2.6"
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "extends": [
+    "airbnb-base"
+  ],
+  "parser": "babel-eslint",
+  "plugins": [
+    "mocha"
+  ],
+  "rules": {
+    "indent": [
+      "error",
+      4
+    ],
+    "no-unused-expressions": "off",
+    "import/no-unresolved": "off",
+    "no-underscore-dangle": "off"
+  },
+  "env": {
+    "mocha": true
+  }
+}

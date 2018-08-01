@@ -1,0 +1,18 @@
+{
+  "extends": [
+    "airbnb-base",
+    "plugin:flowtype/recommended"
+  ],
+  "parser": "babel-eslint",
+  "plugins": [
+    "flowtype",
+    "mocha"
+  ],
+  "rules": {
+    "indent": [
+      "error",
+      4
+    ],
+    "no-underscore-dangle": "off"
+  }
+}
