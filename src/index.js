@@ -1,18 +1,27 @@
 // @flow
 import Database from './db';
 import TimeStateImpl from './timeState';
-import type { FactoryOptions, TimeState } from './types';
+import type {
+    FactoryOptions, TimeState, TimeStateFactory, TimeStateStepper,
+} from './types';
+import TimeStateStepperImpl from './timeStateStepper';
 
-async function TimeStateFactory<S, C>(options: FactoryOptions<S, C>) {
+async function FactoryGen<S, C>(options: FactoryOptions<S, C>): Promise<TimeStateFactory<S, C>> {
     const db = await Database.connect(options.mongoUrl);
 
-    async function create(initialState: S): Promise<TimeState<S, C>> {
+    async function create(initialState: S, time: number): Promise<TimeState<S, C>> {
         const ts = new TimeStateImpl(db, options);
-        await ts.init(initialState, 0);
+        await ts.init(initialState, time);
         return ts;
     }
 
-    return create;
+    async function load(timeStateId: string): Promise<TimeStateStepper<S, C>> {
+        const tss = new TimeStateStepperImpl(db, options);
+        await tss.init(timeStateId);
+        return tss;
+    }
+
+    return { create, load };
 }
 
-export default TimeStateFactory;
+export default FactoryGen;

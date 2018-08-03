@@ -13,6 +13,8 @@
       "error",
       4
     ],
-    "no-underscore-dangle": "off"
+    "no-underscore-dangle": "off",
+    "no-plusplus": "off",
+    "no-return-await": "off"
   }
 }

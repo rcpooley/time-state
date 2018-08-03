@@ -1,9 +1,22 @@
 import { expect } from 'chai';
+import mongoose from 'mongoose';
 import Database from './db';
+import { testDB, initDBs } from './testing';
+
+const { ObjectId } = mongoose.Types;
+const describeDB = initDBs(4);
+
+const blks = [];
+for (let i = 0; i < 5; i++) {
+    blks.push({
+        _id: ObjectId(),
+        initialState: { blockNum: i },
+        time: i * 100,
+        actions: { [`lol${i}`]: `actions${i}` },
+    });
+}
 
 describe('Database', () => {
-    let db;
-
     describe('connect', () => {
         it('should error on bad url', async () => {
             try {
@@ -17,87 +30,135 @@ describe('Database', () => {
         }).timeout(5000);
 
         it('should connect successfully', async () => {
-            db = await Database.connect('mongodb://localhost:27017/timestate_test');
+            const { db, cleanup } = await testDB();
+            expect(db).to.not.be.null;
+            const res = await cleanup();
+            expect(res).to.be.true;
         });
     });
 
-    describe('createTimeState', () => {
+    describeDB('createTimeState', (db) => {
         it('should create a time state', async () => {
-            const ts = await db.createTimeState();
+            const ts = await db().createTimeState();
             expect(ts).to.have.property('_id');
             expect(ts.blocks).to.be.empty;
 
-            const r = await db.TimeState.remove({ _id: ts._id });
+            const r = await db().TimeState.remove({ _id: ts._id });
             expect(r.n).to.equal(1);
             expect(r.ok).to.equal(1);
         });
     });
 
-    describe('addBlock', () => {
+    describeDB('addBlock', (db) => {
         let tsId;
         it('should create a time state', async () => {
-            tsId = (await db.createTimeState())._id;
+            tsId = (await db().createTimeState())._id;
             expect(tsId).to.not.be.null;
         });
 
-        const blks = [
-            {
-                initialState: { foo: 'nope' },
-                changes: [[{ add: 1 }, 5]],
-                checksums: [[{ nah: 2 }, 6]],
-                time: new Date(12345),
-            },
-            {
-                initialState: { foo: 'yup' },
-                changes: [[{ add: 2 }, 5]],
-                checksums: [[{ nah: 3 }, 6]],
-                time: new Date(54321),
-            },
-        ];
+        for (let i = 0; i < blks.length; i++) {
+            const blk = blks[i];
 
-        it('should add a block', async () => {
-            await db.addBlock(tsId, blks[0]);
+            it(`should add block ${i}`, async () => {
+                await db().addBlock(tsId, blk);
 
-            const ts = (await db.TimeState.findById(tsId)).toObject();
-            expect(ts.blocks).to.have.lengthOf(1);
-            const b = ts.blocks[0];
-            Object.keys(blks[0]).forEach((k) => {
-                expect(b[k]).to.deep.equal(blks[0][k]);
+                const ts = (await db().TimeState.findById(tsId)).toObject();
+                expect(ts.blocks).to.have.lengthOf(i + 1);
+
+                for (let j = 0; j <= i; j++) {
+                    const b = ts.blocks[j];
+                    const a = blks[j];
+                    expect(b._id.toString()).to.not.equal(a._id.toString());
+                    expect(b.time).to.equal(a.time);
+                    expect(b.initialState).to.deep.equal(a.initialState);
+                    expect(b.actions).to.deep.equal(a.actions);
+                }
             });
-        });
+        }
 
-        it('should add a second block', async () => {
-            await db.addBlock(tsId, blks[1]);
-
-            const ts = (await db.TimeState.findById(tsId)).toObject();
-            blks.forEach((b, idx) => {
-                Object.keys(b).forEach((k) => {
-                    expect(ts.blocks[idx][k]).to.deep.equal(b[k]);
-                });
-                expect(ts.blocks[idx]).to.have.property('_id');
-            });
+        it('should fail on invalid block', async () => {
+            try {
+                await db().addBlock(tsId, { actions: [] });
+                expect(true, 'should have failed').false;
+            } catch (err) {
+                expect(err.message).to.equal('Cannot save block with 0 actions');
+            }
         });
     });
 
-    describe('cleanup', () => {
-        it('should delete database', () => new Promise((resolve, reject) => {
-            db.conn.dropDatabase((err, resp) => {
-                try {
-                    expect(err).to.be.null;
-                    expect(resp).to.be.true;
-                    resolve();
-                } catch (e) {
-                    reject(e);
-                }
-            });
-        }));
-
-        it('should close connection', () => {
-            db.conn.close(() => {
-                setTimeout(() => {
-                    process.exit(0);
-                }, 1000);
-            });
+    describeDB('getTimeState', (db) => {
+        it('should fail on bad timeStateId', async () => {
+            const tsId = ObjectId();
+            try {
+                await db().getTimeState(tsId);
+                expect(true, 'should have failed').false;
+            } catch (err) {
+                expect(err.message).to.equal(`Could not find timeState with ID ${tsId.toString()}`);
+            }
         });
+
+        let tsId;
+        it('should add a timestate', async () => {
+            const ts = await db().TimeState.create({
+                blocks: blks,
+            });
+            tsId = ts._id;
+        });
+
+        it('should getTimeState', async () => {
+            const ts = await db().getTimeState(tsId);
+            expect(ts._id.toString()).to.equal(tsId.toString());
+            expect(ts.blocks).to.have.lengthOf(blks.length);
+            for (let i = 0; i < ts.blocks.length; i++) {
+                const b = ts.blocks[i];
+                const a = blks[i];
+                expect(b._id.toString()).to.equal(a._id.toString());
+                expect(b.time).to.equal(a.time);
+                expect(b.initialState).to.deep.equal(a.initialState);
+                expect(b).to.not.have.property('actions');
+            }
+        });
+    });
+
+    describeDB('getBlock', (db) => {
+        it('should fail on bad timeStateId', async () => {
+            const tsId = ObjectId();
+            const blkId = ObjectId();
+            try {
+                await db().getBlock(tsId, blkId);
+                expect(true, 'should have failed').false;
+            } catch (err) {
+                expect(err.message).to.equal(`Could not find timeState block with timeStateId ${tsId.toString()} and blockId ${blkId.toString()}`);
+            }
+        });
+
+        let tsId;
+        it('should add a timestate', async () => {
+            const ts = await db().TimeState.create({
+                blocks: blks,
+            });
+            tsId = ts._id;
+        });
+
+        it('should fail on bad blockId', async () => {
+            const blkId = ObjectId();
+            try {
+                await db().getBlock(tsId, blkId);
+                expect(true, 'should have failed').false;
+            } catch (err) {
+                expect(err.message).to.equal(`Could not find timeState block with timeStateId ${tsId.toString()} and blockId ${blkId.toString()}`);
+            }
+        });
+
+        for (let i = 0; i < blks.length; i++) {
+            const a = blks[i];
+            it('should get each block', async () => {
+                const b = await db().getBlock(tsId, a._id);
+                expect(b._id.toString()).to.equal(a._id.toString());
+                expect(b.time).to.equal(a.time);
+                expect(b.initialState).to.deep.equal(a.initialState);
+                expect(b.actions).to.deep.equal(a.actions);
+            });
+        }
     });
 });

@@ -13,7 +13,11 @@
     ],
     "no-unused-expressions": "off",
     "import/no-unresolved": "off",
-    "no-underscore-dangle": "off"
+    "no-underscore-dangle": "off",
+    "import/prefer-default-export": "off",
+    "prefer-destructuring": "off",
+    "no-plusplus": "off",
+    "no-loop-func": "off"
   },
   "env": {
     "mocha": true

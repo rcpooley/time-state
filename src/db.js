@@ -5,11 +5,18 @@ import type { Checksum } from './types';
 const { Schema } = mongoose;
 const { ObjectId } = mongoose.Types;
 
+export type Action<C> = C | Checksum;
+
+// [array of checksum indices, array of changes and checksums]
+export type Actions<C> = [Array<number>, Array<Action<C>>]
+
 export type BlockModel<S, C> = {
+    _id: ObjectId,
     initialState: S,
-    changes: Array<[C, number]>,
-    checksums: Array<[Checksum, number]>,
-    time: Date
+    time: number,
+    actions: {
+        [timeOffset: string]: Actions<C>
+    }
 }
 
 export type TimeStateModel<S, C> = {
@@ -19,9 +26,8 @@ export type TimeStateModel<S, C> = {
 
 const blockSchema = new Schema({
     initialState: Schema.Types.Mixed,
-    changes: [Schema.Types.Mixed],
-    checksums: [Schema.Types.Mixed],
-    time: Date,
+    time: Number,
+    actions: Schema.Types.Mixed,
 });
 
 const timeStateSchema = new Schema({
@@ -63,10 +69,37 @@ class Database<S, C> {
     }
 
     async addBlock(timeStateId: ObjectId, block: BlockModel<S, C>) {
-        await this.TimeState.update(
+        if (Object.keys(block.actions).length === 0) {
+            throw new Error('Cannot save block with 0 actions');
+        }
+        const blk = { ...block };
+        delete blk._id;
+        const res = await this.TimeState.update(
             { _id: timeStateId },
-            { $push: { blocks: block } },
+            { $push: { blocks: blk } },
         );
+        if (res.n !== 1 || res.nModified !== 1 || res.ok !== 1) {
+            throw new Error(`Invalid mongo response: ${JSON.stringify(res)}`);
+        }
+    }
+
+    async getTimeState(timeStateId: ObjectId): Promise<TimeStateModel<S, C>> {
+        const ts = await this.TimeState.findById(timeStateId, { 'blocks.actions': 0 });
+        if (!ts) {
+            throw new Error(`Could not find timeState with ID ${timeStateId}`);
+        }
+        return ts.toObject();
+    }
+
+    async getBlock(timeStateId: ObjectId, blockId: ObjectId): Promise<BlockModel<S, C>> {
+        const res = await this.TimeState.find(
+            { _id: timeStateId, 'blocks._id': blockId },
+            { 'blocks.$': 1 },
+        );
+        if (res.length === 0) {
+            throw new Error(`Could not find timeState block with timeStateId ${timeStateId} and blockId ${blockId}`);
+        }
+        return res[0].blocks[0].toObject();
     }
 }
 
