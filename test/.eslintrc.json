@@ -17,7 +17,8 @@
     "import/prefer-default-export": "off",
     "prefer-destructuring": "off",
     "no-plusplus": "off",
-    "no-loop-func": "off"
+    "no-loop-func": "off",
+    "no-await-in-loop": "off"
   },
   "env": {
     "mocha": true

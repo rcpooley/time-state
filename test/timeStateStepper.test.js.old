@@ -1,8 +1,19 @@
 import { expect } from 'chai';
 import TimeStateStepperImpl from './timeStateStepper';
-import { initDBs, OPTS } from './testing';
+import { initDBs, OPTS, BlockBuilder } from './testing';
 
-const describeDB = initDBs(3);
+const describeDB = initDBs(4);
+
+function initStepper(db, blocks, cb) {
+    it('should init stepper', async () => {
+        const ts = await db().TimeState.create({
+            blocks,
+        });
+        const tss = new TimeStateStepperImpl(db(), OPTS.string5);
+        await tss.init(ts._id.toString());
+        cb(tss);
+    });
+}
 
 describe('TimeStateStepperImpl', () => {
     describeDB('init', (db) => {
@@ -101,5 +112,39 @@ describe('TimeStateStepperImpl', () => {
                 }
             });
         }
+    });
+});
+
+describe('TimeStateStepper', () => {
+    describeDB('one block data set', (db) => {
+        const bb = new BlockBuilder(OPTS.string5, 'hello', 999);
+        bb.checksum(OPTS.string5.checksum('hello'), 1000);
+        for (let i = 0; i < 5; i++) {
+            bb.change([i, 'abcde'.charAt(i)], 1001 + i);
+        }
+        bb.split();
+        const blocks = bb.blocks;
+
+        let tss;
+        initStepper(db, blocks, (a) => {
+            tss = a;
+        });
+
+        const timeVals = {
+            999: 'hello',
+            1000: 'hello',
+            1001: 'aello',
+            1002: 'abllo',
+            1003: 'abclo',
+            1004: 'abcdo',
+            1005: 'abcde',
+        };
+
+        Object.keys(timeVals).forEach((tstr) => {
+            it(`should have state ${timeVals[tstr]} at time ${tstr}`, async () => {
+                await tss.setTime(parseInt(tstr, 10));
+                expect(tss.state).to.equal(timeVals[tstr]);
+            });
+        });
     });
 });

@@ -81,7 +81,7 @@ describe('Database', () => {
                 await db().addBlock(tsId, { actions: [] });
                 expect(true, 'should have failed').false;
             } catch (err) {
-                expect(err.message).to.equal('Cannot save block with 0 actions');
+                expect(err.message).to.equal('Cannot save block with 0 changes');
             }
         });
     });
@@ -157,7 +157,7 @@ describe('Database', () => {
                 expect(b._id.toString()).to.equal(a._id.toString());
                 expect(b.time).to.equal(a.time);
                 expect(b.initialState).to.deep.equal(a.initialState);
-                expect(b.actions).to.deep.equal(a.actions);
+                expect(b.changes).to.deep.equal(a.actions);
             });
         }
     });

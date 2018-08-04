@@ -1,28 +1,9 @@
 // @flow
 import mongoose from 'mongoose';
-import type { Checksum } from './types';
+import type { Storage, TimeStateModel, BlockModel } from './types';
 
 const { Schema } = mongoose;
 const { ObjectId } = mongoose.Types;
-
-export type Action<C> = C | Checksum;
-
-// [array of checksum indices, array of changes and checksums]
-export type Actions<C> = [Array<number>, Array<Action<C>>]
-
-export type BlockModel<S, C> = {
-    _id: ObjectId,
-    initialState: S,
-    time: number,
-    actions: {
-        [timeOffset: string]: Actions<C>
-    }
-}
-
-export type TimeStateModel<S, C> = {
-    _id: ObjectId,
-    blocks: Array<BlockModel<S, C>>
-}
 
 const blockSchema = new Schema({
     initialState: Schema.Types.Mixed,
@@ -34,15 +15,15 @@ const timeStateSchema = new Schema({
     blocks: [blockSchema],
 });
 
-class Database<S, C> {
+class Mongo<S, C> implements Storage<S, C> {
     conn: mongoose.Connection;
 
     Block: mongoose.Model;
 
     TimeState: mongoose.Model;
 
-    static async connect(connUrl: string): Promise<Database<S, C>> {
-        const db = new Database();
+    static async connect(connUrl: string): Promise<Mongo<S, C>> {
+        const db = new Mongo();
         await db.init(connUrl);
         return db;
     }
@@ -65,15 +46,17 @@ class Database<S, C> {
         const ts = await this.TimeState.create({
             blocks: [],
         });
-        return ts.toObject();
+        const obj = ts.toObject();
+        return {
+            id: obj._id.toString(),
+            blocks: obj.blocks,
+        };
     }
 
-    async addBlock(timeStateId: ObjectId, block: BlockModel<S, C>) {
-        if (Object.keys(block.actions).length === 0) {
-            throw new Error('Cannot save block with 0 actions');
-        }
-        const blk = { ...block };
-        delete blk._id;
+    async addBlock(timeStateId: string, block: BlockModel<S, C>): Promise<BlockModel<S, C>> {
+        const blk: any = { ...block };
+        blk._id = ObjectId();
+
         const res = await this.TimeState.update(
             { _id: timeStateId },
             { $push: { blocks: blk } },
@@ -81,17 +64,25 @@ class Database<S, C> {
         if (res.n !== 1 || res.nModified !== 1 || res.ok !== 1) {
             throw new Error(`Invalid mongo response: ${JSON.stringify(res)}`);
         }
+
+        const ret = { ...block };
+        ret.id = blk._id.toString();
+        return ret;
     }
 
-    async getTimeState(timeStateId: ObjectId): Promise<TimeStateModel<S, C>> {
+    async getTimeState(timeStateId: string): Promise<TimeStateModel<S, C>> {
         const ts = await this.TimeState.findById(timeStateId, { 'blocks.actions': 0 });
         if (!ts) {
             throw new Error(`Could not find timeState with ID ${timeStateId}`);
         }
-        return ts.toObject();
+        const obj = ts.toObject();
+        return {
+            id: obj._id.toString(),
+            blocks: obj.blocks,
+        };
     }
 
-    async getBlock(timeStateId: ObjectId, blockId: ObjectId): Promise<BlockModel<S, C>> {
+    async getBlock(timeStateId: string, blockId: string): Promise<BlockModel<S, C>> {
         const res = await this.TimeState.find(
             { _id: timeStateId, 'blocks._id': blockId },
             { 'blocks.$': 1 },
@@ -99,8 +90,11 @@ class Database<S, C> {
         if (res.length === 0) {
             throw new Error(`Could not find timeState block with timeStateId ${timeStateId} and blockId ${blockId}`);
         }
-        return res[0].blocks[0].toObject();
+        const obj = res[0].blocks[0].toObject();
+        const id = obj._id.toString();
+        delete obj._id;
+        return { ...obj, id };
     }
 }
 
-export default Database;
+export default Mongo;
