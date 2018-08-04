@@ -1,20 +1,20 @@
 {
   "name": "time-state",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "A node package for keeping track of some state across time",
+  "repository": "https://github.com/rcpooley/time-state",
+  "keywords": [],
+  "author": "rcpooley",
+  "license": "ISC",
+  "main": "dist/index.js",
   "scripts": {
-    "start": "babel-watch --watch src src/index.js",
     "build": "rimraf ./dist && babel src/ test/ -d dist --copy-files",
-    "prepare": "npm run build",
+    "prepare": "npm run build && flow-copy-source src dist",
     "flow": "flow",
     "lint": "eslint src/** test/**",
     "flint": "npm run flow && npm run lint",
     "test": "npm run build && mocha dist/**/*.test.js"
   },
-  "keywords": [],
-  "author": "rcpooley",
-  "license": "ISC",
   "devDependencies": {
     "babel-cli": "^6.26.0",
     "babel-eslint": "^8.2.6",
@@ -29,10 +29,14 @@
     "eslint-plugin-import": "^2.13.0",
     "eslint-plugin-mocha": "^5.1.0",
     "flow-bin": "^0.77.0",
+    "flow-copy-source": "^2.0.2",
     "mocha": "^5.2.0",
     "rimraf": "^2.6.2"
   },
   "dependencies": {
     "mongoose": "^5.2.6"
-  }
+  },
+  "files": [
+    "dist"
+  ]
 }
