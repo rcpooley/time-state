@@ -23,6 +23,8 @@ describe('TimeStateFactory', async () => {
             expect(ts.state).to.equal('hello');
             expect(model).to.deep.equal({
                 id: ts.id,
+                startTime: 1000,
+                endTime: 1000,
                 blocks: [],
             });
         });

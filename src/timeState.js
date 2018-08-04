@@ -38,7 +38,7 @@ class TimeStateImpl<S, C> implements TimeState<S, C> {
     }
 
     async init(initialState: S, time: number): Promise<void> {
-        this.id = (await this.db.createTimeState()).id;
+        this.id = (await this.db.createTimeState(time)).id;
         this.state = initialState;
         await this.newBlock(time);
         this.alive = true;

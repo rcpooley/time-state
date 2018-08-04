@@ -10,10 +10,12 @@ function newID(): string {
 
 /* eslint-disable class-methods-use-this, no-unused-vars */
 class Dummy<S, C> implements Storage<S, C> {
-    async createTimeState(): Promise<TimeStateModel<S, C>> {
+    async createTimeState(time: number): Promise<TimeStateModel<S, C>> {
         return {
             id: newID(),
             blocks: [],
+            startTime: time,
+            endTime: time,
         };
     }
 

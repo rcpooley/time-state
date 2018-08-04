@@ -24,8 +24,8 @@ class StorageProvider<S, C> implements Storage<S, C> {
         this.provider = provider;
     }
 
-    createTimeState(): Promise<TimeStateModel<S, C>> {
-        return this.provider.createTimeState();
+    createTimeState(time: number): Promise<TimeStateModel<S, C>> {
+        return this.provider.createTimeState(time);
     }
 
     addBlock(timeStateId: string, block: BlockModel<S, C>): Promise<BlockModel<S, C>> {
