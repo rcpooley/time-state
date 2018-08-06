@@ -16,9 +16,10 @@ class Memory<S, C> implements Storage<S, C> {
         this.timeStates = {};
     }
 
-    async createTimeState(time: number): Promise<TimeStateModel<S, C>> {
+    async createTimeState(time: number, tag: string): Promise<TimeStateModel<S, C>> {
         const ts = {
             id: newID(),
+            tag,
             blocks: [],
             startTime: time,
             endTime: time,
@@ -30,6 +31,15 @@ class Memory<S, C> implements Storage<S, C> {
     async addBlock(timeStateId: string, block: BlockModel<S, C>): Promise<BlockModel<S, C>> {
         await this.getTimeState(timeStateId);
         const ts = this.timeStates[timeStateId];
+
+        const lastBlock = ts.blocks[ts.blocks.length - 1];
+        if (lastBlock) {
+            const endTime = Util.getBlockEndTime(lastBlock);
+            if (endTime !== block.time) {
+                throw new Error(`Cannot add block because starting time ${block.time} does not match previous block's ending time ${endTime}`);
+            }
+        }
+
         const obj = { ...block, id: newID() };
         ts.blocks.push(obj);
         ts.endTime = Util.getBlockEndTime(obj);
@@ -58,6 +68,20 @@ class Memory<S, C> implements Storage<S, C> {
             if (b.id === blockId) return b;
         }
         throw new Error(`Block not found with id ${blockId} in TimeState ${timeStateId}`);
+    }
+
+    async getTimeStates(tag: string): Promise<Array<TimeStateModel<S, C>>> {
+        const arr = [];
+        const ids = Object.keys(this.timeStates);
+        for (let i = 0; i < ids.length; i++) {
+            const ts = this.timeStates[ids[i]];
+            if (ts.tag === tag) {
+                const clone = { ...ts };
+                delete clone.blocks;
+                arr.push(clone);
+            }
+        }
+        return arr;
     }
 }
 

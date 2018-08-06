@@ -21,7 +21,7 @@ export interface TimeState<S, C> {
     stop(): Promise<void>;
 }
 
-export interface TimeStateStepper<S, C> {
+export interface Stepper<S, C> {
     +startTime: number;
     +endTime: number;
     +state: S;
@@ -32,6 +32,7 @@ export interface TimeStateStepper<S, C> {
 }
 
 export interface TimeStateFactory<S, C> {
-    create(initialState: S, time: number): Promise<TimeState<S, C>>;
-    load(timeStateId: string): Promise<TimeStateStepper<S, C>>;
+    create(initialState: S, time: number, tag?: string): Promise<TimeState<S, C>>;
+    load(timeStateId: string): Promise<Stepper<S, C>>;
+    loadSequence(timeStateTag: string): Promise<Stepper<S, C>>;
 }

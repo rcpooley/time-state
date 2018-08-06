@@ -10,9 +10,10 @@ function newID(): string {
 
 /* eslint-disable class-methods-use-this, no-unused-vars */
 class Dummy<S, C> implements Storage<S, C> {
-    async createTimeState(time: number): Promise<TimeStateModel<S, C>> {
+    async createTimeState(time: number, tag: string): Promise<TimeStateModel<S, C>> {
         return {
             id: newID(),
+            tag,
             blocks: [],
             startTime: time,
             endTime: time,
@@ -29,6 +30,10 @@ class Dummy<S, C> implements Storage<S, C> {
 
     async getBlock(timeStateId: string, blockId: string): Promise<BlockModel<S, C>> {
         throw new Error('Cannot call getBlock on dummy storage provider');
+    }
+
+    async getTimeStates(tag: string) {
+        throw new Error('Cannot call getTimeStates on dummy storage provider');
     }
 }
 /* eslint-enable class-methods-use-this, no-unused-vars */

@@ -1,104 +1,30 @@
 import { expect } from 'chai';
 import TimeStateStepperImpl from './timeStateStepper';
-import { initDBs, OPTS, BlockBuilder } from './testing';
-
-const describeDB = initDBs(4);
-
-function initStepper(db, blocks, cb) {
-    it('should init stepper', async () => {
-        const ts = await db().TimeState.create({
-            blocks,
-        });
-        const tss = new TimeStateStepperImpl(db(), OPTS.string5);
-        await tss.init(ts._id.toString());
-        cb(tss);
-    });
-}
+import Storage from './storage';
+import { stringOpt } from './testOptions';
 
 describe('TimeStateStepperImpl', () => {
-    describeDB('init', (db) => {
-        it('should fail with empty blocks', async () => {
-            const ts = await db().createTimeState();
-
-            const tss = new TimeStateStepperImpl(db());
-            try {
-                await tss.init(ts._id.toString());
-                expect(true, 'should have failed').false;
-            } catch (err) {
-                expect(err.message).to.equal('Cannot init stepper from timeState with no blocks');
-            }
-        });
-
-        it('should init successfully', async () => {
-            const ts = await db().createTimeState();
-            await db().addBlock(ts._id, {
+    describe('getClosestBlockIdx', () => {
+        const blks = [];
+        for (let i = 1; i <= 10; i++) {
+            blks.push({
                 initialState: 'hello',
-                time: 1000,
-                actions: {
-                    5: [],
-                    10: [],
-                    7: [],
-                },
+                time: i * 100,
+                changes: { 1: 1 },
             });
+        }
 
-            const tss = new TimeStateStepperImpl(db(), OPTS.string5);
-            await tss.init(ts._id.toString());
-            expect(tss.timeStateId).to.deep.equal(ts._id);
-            expect(tss.curBlockIdx).to.equal(0);
-            expect(tss.curBlockTimes).to.deep.equal([5, 7, 10]);
-            expect(tss.nextTimeIdx).to.equal(0);
-            expect(tss.state).to.be.undefined;
-            expect(tss.time).to.equal(0);
-        });
-    });
-
-    describeDB('nextBlock', (db) => {
-        it('should fail with bad checksums', async () => {
-            const ts = await db().createTimeState();
-            await db().addBlock(ts._id, {
-                initialState: 'hello',
-                time: 1000,
-                actions: { 1: 1 },
-            });
-            await db().addBlock(ts._id, {
-                initialState: 'jello',
-                time: 2000,
-                actions: { 1: 1 },
-            });
-
-            const tss = new TimeStateStepperImpl(db(), OPTS.string5);
-            await tss.init(ts._id.toString());
-            tss.state = 'hello';
-
-            try {
-                await tss.nextBlock();
-                expect(true, 'should have failed').false;
-            } catch (err) {
-                expect(err.message).to.equal(
-                    `Checksum mismatch when loading next block. Old checksum: ${OPTS.string5.checksum('hello')}; New checksum: ${OPTS.string5.checksum('jello')}`,
-                );
-            }
-        });
-    });
-
-    describeDB('getClosestBlockIdx', (db) => {
         let tss;
         it('should init stepper', async () => {
-            const blks = [];
-            for (let i = 1; i <= 10; i++) {
-                blks.push({
-                    initialState: 'hello',
-                    time: i * 100,
-                    actions: { 1: 1 },
-                });
-            }
-
-            const ts = await db().TimeState.create({
-                blocks: blks,
+            const db = await Storage.memory();
+            const ts = await db.createTimeState(100);
+            db.provider.timeStates[ts.id].blocks = blks;
+            tss = new TimeStateStepperImpl({
+                ...stringOpt,
+                changeThreshold: 5,
+                storageProvider: db,
             });
-
-            tss = new TimeStateStepperImpl(db(), OPTS.string5);
-            await tss.init(ts._id.toString());
+            await tss.init(ts.id);
         });
 
         it('should get first block when time = 0', () => {
@@ -112,39 +38,5 @@ describe('TimeStateStepperImpl', () => {
                 }
             });
         }
-    });
-});
-
-describe('TimeStateStepper', () => {
-    describeDB('one block data set', (db) => {
-        const bb = new BlockBuilder(OPTS.string5, 'hello', 999);
-        bb.checksum(OPTS.string5.checksum('hello'), 1000);
-        for (let i = 0; i < 5; i++) {
-            bb.change([i, 'abcde'.charAt(i)], 1001 + i);
-        }
-        bb.split();
-        const blocks = bb.blocks;
-
-        let tss;
-        initStepper(db, blocks, (a) => {
-            tss = a;
-        });
-
-        const timeVals = {
-            999: 'hello',
-            1000: 'hello',
-            1001: 'aello',
-            1002: 'abllo',
-            1003: 'abclo',
-            1004: 'abcdo',
-            1005: 'abcde',
-        };
-
-        Object.keys(timeVals).forEach((tstr) => {
-            it(`should have state ${timeVals[tstr]} at time ${tstr}`, async () => {
-                await tss.setTime(parseInt(tstr, 10));
-                expect(tss.state).to.equal(timeVals[tstr]);
-            });
-        });
     });
 });

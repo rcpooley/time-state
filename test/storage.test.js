@@ -1,6 +1,9 @@
 import { expect } from 'chai';
+import mongoose from 'mongoose';
 import Storage from './storage';
 import { testDB } from './testing';
+
+const { ObjectId } = mongoose.Types;
 
 function test(name, dbFunc, func) {
     describe(name, () => {
@@ -41,6 +44,18 @@ function test(name, dbFunc, func) {
                 expect(true, 'should have failed').false;
             } catch (err) {
                 expect(err.message).to.equal('TimeState not found with id invalid_id');
+            }
+
+            const id = ObjectId().toString();
+            try {
+                await db.addBlock(id, {
+                    initialState: '',
+                    time: 0,
+                    changes: { 1: ['a'] },
+                });
+                expect(true, 'should have failed').false;
+            } catch (err) {
+                expect(err.message).to.equal(`TimeState not found with id ${id}`);
             }
 
             try {
@@ -149,6 +164,82 @@ function test(name, dbFunc, func) {
             }
         });
 
+        it('should get no time states from getTimeStates', async () => {
+            const arr = await db.getTimeStates('random tag');
+            expect(arr).to.be.empty;
+        });
+
+        it('should create time states with tags', async () => {
+            for (let i = 0; i < 10; i++) {
+                const ts2 = await db.createTimeState(i * 2, i % 2 === 0 ? 'first' : 'second');
+                await db.addBlock(ts2.id, {
+                    initialState: 'hello',
+                    time: i * 2,
+                    changes: { 1: 'lol' },
+                });
+            }
+        });
+
+        it('should get "first" time states', async () => {
+            const arr = await db.getTimeStates('first');
+            expect(arr).to.have.lengthOf(5);
+            arr.forEach((t, idx) => {
+                expect(t.startTime).to.equal(idx * 4);
+                expect(t.endTime).to.equal(idx * 4 + 1);
+                expect(t.tag).to.equal('first');
+                expect(t).to.not.have.property('blocks');
+            });
+        });
+
+        it('should get "second" time states', async () => {
+            const arr = await db.getTimeStates('second');
+            expect(arr).to.have.lengthOf(5);
+            arr.forEach((t, idx) => {
+                expect(t.startTime).to.equal(idx * 4 + 2);
+                expect(t.endTime).to.equal(idx * 4 + 2 + 1);
+                expect(t.tag).to.equal('second');
+                expect(t).to.not.have.property('blocks');
+            });
+        });
+
+        it('addBlock should fail on time mismatch', async () => {
+            const ts2 = await db.createTimeState(1000, '');
+            await db.addBlock(ts2.id, {
+                initialState: 'hello',
+                time: 5000,
+                changes: {
+                    500: ['a'],
+                },
+            });
+            try {
+                await db.addBlock(ts2.id, {
+                    initialState: 'goodbye',
+                    time: 5501,
+                    changes: {
+                        1: ['a'],
+                    },
+                });
+                expect(true, 'should have failed').false;
+            } catch (err) {
+                expect(err.message).to.equal('Cannot add block because starting time 5501 does not match previous block\'s ending time 5500');
+            }
+
+            await db.addBlock(ts2.id, {
+                initialState: 'goodbye',
+                time: 5500,
+                changes: {
+                    1: ['a'],
+                },
+            });
+
+            await db.addBlock(ts2.id, {
+                initialState: 'asdf',
+                time: 5501,
+                changes: {
+                    2: ['a'],
+                },
+            });
+        });
 
         if (func) func();
     });

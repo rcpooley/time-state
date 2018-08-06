@@ -24,8 +24,8 @@ class StorageProvider<S, C> implements Storage<S, C> {
         this.provider = provider;
     }
 
-    createTimeState(time: number): Promise<TimeStateModel<S, C>> {
-        return this.provider.createTimeState(time);
+    createTimeState(time: number, tag: string): Promise<TimeStateModel<S, C>> {
+        return this.provider.createTimeState(time, tag);
     }
 
     addBlock(timeStateId: string, block: BlockModel<S, C>): Promise<BlockModel<S, C>> {
@@ -50,6 +50,13 @@ class StorageProvider<S, C> implements Storage<S, C> {
 
     getBlock(timeStateId: string, blockId: string): Promise<BlockModel<S, C>> {
         return this.provider.getBlock(timeStateId, blockId);
+    }
+
+    getTimeStates(tag: string): Promise<Array<TimeStateModel<S, C>>> {
+        if (!tag || tag.length === 0) {
+            throw new Error(`Invalid tag: ${tag}`);
+        }
+        return this.provider.getTimeStates(tag);
     }
 }
 

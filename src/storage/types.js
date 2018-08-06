@@ -10,14 +10,16 @@ export type BlockModel<S, C> = {
 
 export type TimeStateModel<S, C> = {
     id: string,
+    tag: string,
     startTime: number,
     endTime: number,
     blocks: Array<BlockModel<S, C>>
 }
 
 export interface Storage<S, C> {
-    createTimeState(time: number): Promise<TimeStateModel<S, C>>;
+    createTimeState(time: number, tag: string): Promise<TimeStateModel<S, C>>;
     addBlock(timeStateId: string, block: BlockModel<S, C>): Promise<BlockModel<S, C>>;
     getTimeState(timeStateId: string): Promise<TimeStateModel<S, C>>;
     getBlock(timeStateId: string, blockId: string): Promise<BlockModel<S, C>>;
+    getTimeStates(tag: string): Promise<Array<TimeStateModel<S, C>>>;
 }

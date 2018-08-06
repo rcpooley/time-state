@@ -9,10 +9,11 @@ const { ObjectId } = mongoose.Types;
 const blockSchema = new Schema({
     initialState: Schema.Types.Mixed,
     time: Number,
-    actions: Schema.Types.Mixed,
+    changes: Schema.Types.Mixed,
 });
 
 const timeStateSchema = new Schema({
+    tag: String,
     startTime: Number,
     endTime: Number,
     blocks: [blockSchema],
@@ -53,8 +54,9 @@ class Mongo<S, C> implements Storage<S, C> {
         });
     }
 
-    async createTimeState(time: number): Promise<TimeStateModel<S, C>> {
+    async createTimeState(time: number, tag: string): Promise<TimeStateModel<S, C>> {
         const ts = await this.TimeState.create({
+            tag,
             startTime: time,
             endTime: time,
             blocks: [],
@@ -62,6 +64,7 @@ class Mongo<S, C> implements Storage<S, C> {
         const obj = ts.toObject();
         return {
             id: obj._id.toString(),
+            tag: obj.tag,
             startTime: obj.startTime,
             endTime: obj.endTime,
             blocks: obj.blocks,
@@ -72,15 +75,32 @@ class Mongo<S, C> implements Storage<S, C> {
         const blk: any = { ...block };
         blk._id = ObjectId();
 
+        const tsId = Mongo.getId(timeStateId);
+
+        const book = await this.TimeState.aggregate([
+            { $match: { _id: tsId } },
+            { $unwind: '$blocks' },
+            { $sort: { 'blocks.time': -1 } },
+            { $group: { _id: '$_id', block: { $first: '$blocks' } } },
+            { $limit: 1 },
+        ]);
+        if (book.length > 0) {
+            const b = book[0].block;
+            const endTime = Util.getBlockEndTime(b);
+            if (endTime !== block.time) {
+                throw new Error(`Cannot add block because starting time ${block.time} does not match previous block's ending time ${endTime}`);
+            }
+        }
+
         const res = await this.TimeState.update(
-            { _id: Mongo.getId(timeStateId) },
+            { _id: tsId },
             {
                 $push: { blocks: blk },
                 $set: { endTime: Util.getBlockEndTime(block) },
             },
         );
         if (res.n !== 1 || res.nModified !== 1 || res.ok !== 1) {
-            throw new Error(`Invalid mongo response: ${JSON.stringify(res)}`);
+            throw new Error(`TimeState not found with id ${timeStateId}`);
         }
 
         const ret = { ...block };
@@ -89,13 +109,14 @@ class Mongo<S, C> implements Storage<S, C> {
     }
 
     async getTimeState(timeStateId: string): Promise<TimeStateModel<S, C>> {
-        const ts = await this.TimeState.findById(Mongo.getId(timeStateId), { 'blocks.actions': 0 });
+        const ts = await this.TimeState.findById(Mongo.getId(timeStateId), { 'blocks.changes': 0 });
         if (!ts) {
             throw new Error(`TimeState not found with id ${timeStateId}`);
         }
         const obj = ts.toObject();
         return {
             id: obj._id.toString(),
+            tag: obj.tag,
             startTime: obj.startTime,
             endTime: obj.endTime,
             blocks: obj.blocks.map((b) => {
@@ -120,6 +141,16 @@ class Mongo<S, C> implements Storage<S, C> {
         const id = obj._id.toString();
         delete obj._id;
         return { ...obj, id };
+    }
+
+    async getTimeStates(tag: string): Promise<Array<TimeStateModel<S, C>>> {
+        const arr = await this.TimeState.find({ tag }, { blocks: 0 });
+        return arr.map((ts) => {
+            const clone = { ...ts.toObject() };
+            clone.id = clone._id.toString();
+            delete clone._id;
+            return clone;
+        });
     }
 }
 
