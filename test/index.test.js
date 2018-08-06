@@ -190,6 +190,50 @@ describe('TimeStateFactory', async () => {
         });
 
         it('should set time successfully', () => testSetTime(tss, timeMap));
+
+        it('should fail on bad checksum', async () => {
+            db.timeStates['stepper-test'] = {
+                id: 'stepper-test',
+                tag: '',
+                startTime: 1000,
+                endTime: 1300,
+                blocks: [
+                    {
+                        id: 'block0',
+                        initialState: 'hello',
+                        time: 1000,
+                        changes: {
+                            100: [[0, 'j']],
+                            250: [[4, 'a']],
+                        },
+                    },
+                    {
+                        id: 'block1',
+                        initialState: 'hella',
+                        time: 1250,
+                        changes: {
+                            50: [[2, 'b']],
+                        },
+                    },
+                ],
+            };
+            const tss2 = await factory.load('stepper-test');
+            expect(tss2.startTime).to.equal(1000);
+            expect(tss2.endTime).to.equal(1300);
+            expect(tss2.state).to.equal('hello');
+            expect(tss2.time).to.equal(1000);
+            expect(tss2.nextChangeOffset).to.equal(100);
+            await tss2.step();
+            expect(tss2.state).to.equal('jello');
+            expect(tss2.time).to.equal(1100);
+            expect(tss2.nextChangeOffset).to.equal(150);
+            try {
+                await tss2.step();
+                expect(true, 'should have failed').false;
+            } catch (err) {
+                expect(err.message).to.equal(`Checksum mismatch when loading next block. Old checksum: ${stringOpt.checksum('jella')}; New checksum: ${stringOpt.checksum('hella')}`);
+            }
+        });
     });
 
     describe('TimeStateSequence', () => {

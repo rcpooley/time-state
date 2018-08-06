@@ -10,11 +10,11 @@ class StorageProvider<S, C> implements Storage<S, C> {
         return new StorageProvider(db);
     }
 
-    static async memory(): Promise<StorageProvider<S, C>> {
+    static memory(): StorageProvider<S, C> {
         return new StorageProvider(new Memory());
     }
 
-    static async dummy(): Promise<StorageProvider<S, C>> {
+    static dummy(): StorageProvider<S, C> {
         return new StorageProvider(new Dummy());
     }
 

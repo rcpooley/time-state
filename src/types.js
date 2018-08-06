@@ -11,7 +11,7 @@ export type FactoryOptions<S, C> = {
     reducer: Reducer<S, C>,
     checksum: ChecksumCalc<S>,
     storageProvider: Storage<S, C>,
-    changeThreshold: number
+    changeThreshold: number // the max number of changes to store in a block
 }
 
 export interface TimeState<S, C> {
