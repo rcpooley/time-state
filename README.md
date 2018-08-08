@@ -11,7 +11,7 @@ First import time-state
 ```js
 const TS = require('time-state');
 ```
-Then create a [factory](https://github.com/rcpooley/time-state/blob/master/src/types.js#L34) (see [FactoryOptions](https://github.com/rcpooley/time-state/blob/master/src/types.js#L10))
+Then create a [factory](https://github.com/rcpooley/time-state/blob/master/src/types.js#L37) (see [FactoryOptions](https://github.com/rcpooley/time-state/blob/master/src/types.js#L10))
 ```js
 const factory = TS.factory({/* options */});
 ```

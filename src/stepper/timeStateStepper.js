@@ -85,7 +85,7 @@ export default async function<S, C> (
             timeStateId,
             timeState.blocks[idx].id,
         );
-        return (new BlockStepper(options, block): any);
+        return (new BlockStepper(options, block): any); // TODO this is bad
     }
 
     const stepper = new StepperImpl({
@@ -96,5 +96,6 @@ export default async function<S, C> (
         chunks,
     }, options);
     await stepper.init();
+    if (stepper.nextChangeOffset === 0) await stepper.step();
     return stepper;
 }

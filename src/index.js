@@ -2,7 +2,7 @@
 import TimeStateImpl from './timeState';
 import StorageProvider from './storage';
 import type {
-    FactoryOptions, TimeState, TimeStateFactory, Stepper,
+    FactoryOptions, TimeState, TimeStateFactory, Stepper, StateMap, ChangeMap,
 } from './types';
 import StepperInit from './stepper';
 
@@ -23,7 +23,15 @@ function factory<S, C>(options: FactoryOptions<S, C>): TimeStateFactory<S, C> {
         return await steppers.sequence(timeStateTag);
     }
 
-    return { create, load, loadSequence };
+    async function loadSyncStepper(
+        tags: Array<string>,
+    ): Promise<Stepper<StateMap<S>, ChangeMap<C>>> {
+        return await steppers.sync(tags);
+    }
+
+    return {
+        create, load, loadSequence, loadSyncStepper,
+    };
 }
 
 export default { factory, Storage: StorageProvider };

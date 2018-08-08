@@ -101,6 +101,9 @@ class StepperImpl<S, C> implements Stepper<S, C> {
                 if (this.skipChecksum) {
                     this.nextChangeOffset = this.curChunk.time - this.time;
                     this.stepToChunk = true;
+                    if (this.nextChangeOffset === 0) {
+                        return await this.step();
+                    }
                 } else {
                     throw err;
                 }

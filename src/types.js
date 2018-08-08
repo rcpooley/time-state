@@ -31,8 +31,12 @@ export interface Stepper<S, C> {
     setTime(time: number): Promise<void>;
 }
 
+export type StateMap<S> = { [tag: string]: (S | null) }
+export type ChangeMap<C> = { [tag: string]: C }
+
 export interface TimeStateFactory<S, C> {
     create(initialState: S, time: number, tag?: string): Promise<TimeState<S, C>>;
     load(timeStateId: string): Promise<Stepper<S, C>>;
     loadSequence(timeStateTag: string): Promise<Stepper<S, C>>;
+    loadSyncStepper(tags: Array<string>): Promise<Stepper<StateMap<S>, ChangeMap<C>>>;
 }

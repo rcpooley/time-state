@@ -43,6 +43,14 @@ async function testSetTime(tss, timeMap) {
     }
 }
 
+function getState(idx) {
+    return stringOptData[idx].newState;
+}
+
+function getChange(idx) {
+    return stringOptData[idx].change;
+}
+
 describe('TimeStateFactory', async () => {
     let db;
     let factory;
@@ -159,6 +167,20 @@ describe('TimeStateFactory', async () => {
                 1: [[0, 'n']],
             });
         });
+
+        it('should make changes with no delay', async () => {
+            const ats = await factory.create('hello', 100);
+            await ats.change([0, 'j'], 100);
+            await ats.change([4, 'a'], 100);
+            await ats.change([1, 'a'], 105);
+            await ats.stop();
+            const mem = db.timeStates[ats.id];
+            expect(mem.blocks).to.have.lengthOf(1);
+            const b = mem.blocks[0];
+            expect(Object.keys(b.changes)).to.deep.equal(['0', '5']);
+            expect(b.changes[0]).to.deep.equal([[0, 'j'], [4, 'a']]);
+            expect(b.changes[5]).to.deep.equal([[1, 'a']]);
+        });
     });
 
     describe('TimeStateStepper', () => {
@@ -234,6 +256,35 @@ describe('TimeStateFactory', async () => {
                 expect(err.message).to.equal(`Checksum mismatch when loading next block. Old checksum: ${stringOpt.checksum('jella')}; New checksum: ${stringOpt.checksum('hella')}`);
             }
         });
+
+        it('should step with zero delay change', async () => {
+            const ts = await factory.create('hello', 100);
+            await ts.change([0, 'j'], 100);
+            await ts.change([4, 'a'], 100);
+            await ts.change([1, 'a'], 104);
+            await ts.stop();
+
+            const atss = await factory.load(ts.id);
+
+            // 100
+            expect(atss.startTime).to.equal(100);
+            expect(atss.endTime).to.equal(104);
+            expect(atss.time).to.equal(100);
+            expect(atss.state).to.equal('jella');
+            expect(atss.nextChangeOffset).to.equal(4);
+
+            // 100 -> 104
+            expect(await atss.step()).to.deep.equal([[1, 'a']]);
+            expect(atss.time).to.equal(104);
+            expect(atss.state).to.equal('jalla');
+            expect(atss.nextChangeOffset).to.equal(0);
+
+            // 104 -> 104
+            expect(await atss.step()).to.deep.equal([]);
+            expect(atss.time).to.equal(104);
+            expect(atss.state).to.equal('jalla');
+            expect(atss.nextChangeOffset).to.equal(0);
+        });
     });
 
     describe('TimeStateSequence', () => {
@@ -293,5 +344,271 @@ describe('TimeStateFactory', async () => {
         });
 
         it('should set time successfully', () => testSetTime(tss, timeMap)).timeout(5000);
+
+        it('should step with zero change delay', async () => {
+            const ats = await factory.create('hello', 100, 'zero-tag');
+            await ats.change([0, 'b'], 100);
+            await ats.change([3, 't'], 100);
+            await ats.change([4, 'y'], 105);
+            await ats.stop();
+
+            const bts = await factory.create('coolo', 106, 'zero-tag');
+            await bts.change([0, 'p'], 106);
+            await bts.change([4, 'i'], 108);
+            await bts.stop();
+
+            const cts = await factory.create('asdfg', 108, 'zero-tag');
+            await cts.change([4, 'z'], 109);
+            await cts.stop();
+
+            const dts = await factory.create('qqqqq', 109, 'zero-tag');
+            await dts.change([2, 'v'], 109);
+            await dts.stop();
+
+            const atss = await factory.loadSequence('zero-tag');
+
+            // 100
+            expect(atss.startTime).to.equal(100);
+            expect(atss.endTime).to.equal(109);
+            expect(atss.state).to.equal('belto');
+            expect(atss.time).to.equal(100);
+            expect(atss.nextChangeOffset).to.equal(5);
+
+            // 100 -> 105
+            expect(await atss.step()).to.deep.equal([[4, 'y']]);
+            expect(atss.state).to.equal('belty');
+            expect(atss.time).to.equal(105);
+            expect(atss.nextChangeOffset).to.equal(1);
+
+            // 105 -> 106
+            expect(await atss.step()).to.deep.equal([]);
+            expect(atss.state).to.equal('poolo');
+            expect(atss.time).to.equal(106);
+            expect(atss.nextChangeOffset).to.equal(2);
+
+            // 106 -> 108
+            expect(await atss.step()).to.deep.equal([]);
+            expect(atss.state).to.equal('asdfg');
+            expect(atss.time).to.equal(108);
+            expect(atss.nextChangeOffset).to.equal(1);
+
+            // 108 -> 109
+            expect(await atss.step()).to.deep.equal([]);
+            expect(atss.state).to.equal('qqvqq');
+            expect(atss.time).to.equal(109);
+            expect(atss.nextChangeOffset).to.equal(0);
+
+            // 109 -> 109
+            expect(await atss.step()).to.deep.equal([]);
+            expect(atss.state).to.equal('qqvqq');
+            expect(atss.time).to.equal(109);
+            expect(atss.nextChangeOffset).to.equal(0);
+        });
+    });
+
+    describe('SyncStepper', () => {
+        async function initSequence(tag, timeArrayMap) {
+            const startIndices = Object.keys(timeArrayMap).map(idx => parseInt(idx, 10));
+            for (let i = 0; i < startIndices.length; i++) {
+                let startIdx = startIndices[i];
+                const times = timeArrayMap[startIdx];
+
+                const ts = await factory.create(
+                    stringOptData[startIdx++].newState,
+                    times[0],
+                    tag,
+                );
+
+                for (let j = 1; j < times.length; j++) {
+                    await ts.change(stringOptData[startIdx++].change, times[j]);
+                }
+
+                await ts.stop();
+            }
+        }
+
+        const sequences = [
+            [
+                [10, 15, 20],
+                [30, 31, 37],
+                [38, 39],
+            ],
+            [
+                [12, 13, 15, 17, 21],
+                [27, 34, 37, 39],
+            ],
+            [
+                [10, 17, 22, 29, 30, 42],
+            ],
+        ];
+
+        const seqIndices = {};
+        it('should initialize data', async () => {
+            const parsed = {};
+            let curChangeIdx = 0;
+            for (let i = 0; i < sequences.length; i++) {
+                const seq = sequences[i];
+                const obj = {};
+                const idxs = [];
+                for (let j = 0; j < seq.length; j++) {
+                    obj[curChangeIdx] = seq[j];
+                    idxs.push(curChangeIdx);
+                    curChangeIdx += seq[j].length + 2;
+                }
+                const tag = `seq_${i}`;
+                parsed[tag] = obj;
+                seqIndices[tag] = idxs;
+            }
+
+            await Promise.all(
+                Object.keys(parsed).map(tag => initSequence(tag, parsed[tag])),
+            );
+        });
+
+        it('should step successfully', async () => {
+            const idxMap = Object.keys(seqIndices).map(tag => seqIndices[tag][0]);
+            let states = {};
+
+            const stepper = await factory.loadSyncStepper(Object.keys(seqIndices));
+            expect(stepper.startTime).to.equal(10);
+            expect(stepper.endTime).to.equal(42);
+            expect(stepper.time).to.equal(10);
+            expect(stepper.nextChangeOffset).to.equal(2);
+
+            const assertStateChange = (obj) => {
+                states = { ...states, ...obj };
+                expect(stepper.state).to.deep.equal(states);
+            };
+
+            const assertStates = (...idxs) => {
+                const obj = {};
+                idxs.forEach((i) => {
+                    if (i >= 10) {
+                        obj[`seq_${i % 10}`] = null;
+                    } else {
+                        obj[`seq_${i}`] = getState(idxMap[i]++);
+                    }
+                });
+                assertStateChange(obj);
+            };
+
+            const assertChange = async (...idxs) => {
+                const changes = idxs.map(idx => ({
+                    [`seq_${idx}`]: getChange(idxMap[idx]),
+                }));
+                expect(await stepper.step()).to.deep.equal(changes);
+            };
+
+            assertStateChange({
+                seq_0: getState(idxMap[0]++),
+                seq_1: null,
+                seq_2: getState(idxMap[2]++),
+            });
+
+            // 10 -> 12
+            expect(await stepper.step()).to.deep.equal([]);
+            assertStateChange({ seq_1: getState(idxMap[1]++) });
+            expect(stepper.time).to.equal(12);
+            expect(stepper.nextChangeOffset).to.equal(1);
+
+            // 12 -> 13
+            await assertChange(1);
+            assertStates(1);
+            expect(stepper.time).to.equal(13);
+            expect(stepper.nextChangeOffset).to.equal(2);
+
+            // 13 -> 15
+            await assertChange(0, 1);
+            assertStates(0, 1);
+            expect(stepper.time).to.equal(15);
+            expect(stepper.nextChangeOffset).to.equal(2);
+
+            // 15 -> 17
+            await assertChange(1, 2);
+            assertStates(1, 2);
+            expect(stepper.time).to.equal(17);
+            expect(stepper.nextChangeOffset).to.equal(3);
+
+            // 17 -> 20
+            await assertChange(0);
+            assertStates(0);
+            expect(stepper.time).to.equal(20);
+            expect(stepper.nextChangeOffset).to.equal(1);
+
+            // 20 -> 21
+            await assertChange(1);
+            assertStates(10, 1);
+            expect(stepper.time).to.equal(21);
+            expect(stepper.nextChangeOffset).to.equal(1);
+
+            // 21 -> 22
+            await assertChange(2);
+            assertStates(11, 2);
+            expect(stepper.time).to.equal(22);
+            expect(stepper.nextChangeOffset).to.equal(5);
+
+            // 22 -> 27
+            expect(await stepper.step()).to.deep.equal([]);
+            idxMap[1] = seqIndices.seq_1[1];
+            assertStates(1);
+            expect(stepper.time).to.equal(27);
+            expect(stepper.nextChangeOffset).to.equal(2);
+
+            // 27 -> 29
+            await assertChange(2);
+            assertStates(2);
+            expect(stepper.time).to.equal(29);
+            expect(stepper.nextChangeOffset).to.equal(1);
+
+            // 29 -> 30
+            await assertChange(2);
+            idxMap[0] = seqIndices.seq_0[1];
+            assertStates(0, 2);
+            expect(stepper.time).to.equal(30);
+            expect(stepper.nextChangeOffset).to.equal(1);
+
+            // 30 -> 31
+            await assertChange(0);
+            assertStates(0);
+            expect(stepper.time).to.equal(31);
+            expect(stepper.nextChangeOffset).to.equal(3);
+
+            // 31 -> 34
+            await assertChange(1);
+            assertStates(1);
+            expect(stepper.time).to.equal(34);
+            expect(stepper.nextChangeOffset).to.equal(3);
+
+            // 34 -> 37
+            await assertChange(0, 1);
+            assertStates(0, 1);
+            expect(stepper.time).to.equal(37);
+            expect(stepper.nextChangeOffset).to.equal(1);
+
+            // 37 -> 38
+            expect(await stepper.step()).to.deep.equal([]);
+            idxMap[0] = seqIndices.seq_0[2];
+            assertStates(0);
+            expect(stepper.time).to.equal(38);
+            expect(stepper.nextChangeOffset).to.equal(1);
+
+            // 38 -> 39
+            await assertChange(0, 1);
+            assertStates(0, 1);
+            expect(stepper.time).to.equal(39);
+            expect(stepper.nextChangeOffset).to.equal(3);
+
+            // 39 -> 42
+            await assertChange(2);
+            assertStates(2, 10, 11);
+            expect(stepper.time).to.equal(42);
+            expect(stepper.nextChangeOffset).to.equal(0);
+
+            // 42 -> 42
+            expect(await stepper.step()).to.deep.equal([]);
+            assertStates();
+            expect(stepper.time).to.equal(42);
+            expect(stepper.nextChangeOffset).to.equal(0);
+        });
     });
 });
