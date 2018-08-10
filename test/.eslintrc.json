@@ -18,7 +18,8 @@
     "prefer-destructuring": "off",
     "no-plusplus": "off",
     "no-loop-func": "off",
-    "no-await-in-loop": "off"
+    "no-await-in-loop": "off",
+    "no-continue": "off"
   },
   "env": {
     "mocha": true

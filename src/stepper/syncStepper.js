@@ -148,7 +148,39 @@ class SyncStepper<S, C> implements Stepper<StateMap<S>, ChangeMap<C>> {
     }
 
     async setTime(time: number): Promise<void> {
+        await Promise.all(
+            Object.keys(this.steppers).map(tag => this.setStepperTime(tag, time)),
+        );
 
+        this.time = time;
+        this.updateNextChangeOffset();
+    }
+
+    async setStepperTime(tag: string, time: number) {
+        const s = this.steppers[tag];
+        await s.stepper.setTime(time);
+        const ts = s.timeStates.filter(ats => time >= ats.startTime && time <= ats.endTime)[0];
+        if (ts) {
+            s.timeStateIdx = s.timeStates.indexOf(ts);
+            s.active = true;
+            s.nextTime = s.stepper.time + s.stepper.nextChangeOffset;
+            this.state[tag] = s.stepper.state;
+        } else {
+            s.timeStateIdx = 0;
+            s.timeStates.forEach((ats, idx) => {
+                if (time > ats.endTime) s.timeStateIdx = idx + 1;
+            });
+            s.active = false;
+            if (s.timeStateIdx === s.timeStates.length) {
+                s.nextTime = 0;
+            } else {
+                s.nextTime = s.timeStates[s.timeStateIdx].startTime;
+            }
+            this.state[tag] = null;
+            if (time >= s.stepper.time) {
+                await s.stepper.step();
+            }
+        }
     }
 }
 

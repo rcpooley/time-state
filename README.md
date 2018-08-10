@@ -38,4 +38,5 @@ See [storage/mongo.js](https://github.com/rcpooley/time-state/blob/master/src/st
 and [storage/memory.js](https://github.com/rcpooley/time-state/blob/master/src/storage/memory.js).
 
 ## Examples
-See [examples/tictactoe.js](https://github.com/rcpooley/time-state/blob/master/src/examples/tictactoe.js)
+* See [examples/tictactoe.js](https://github.com/rcpooley/time-state/blob/master/src/examples/tictactoe.js) for basic factory usage.
+* See [examples/trading.js](https://github.com/rcpooley/time-state/blob/master/src/examples/trading.js) for usage of the sequence stepper and sync stepper.

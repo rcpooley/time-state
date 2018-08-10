@@ -14,7 +14,8 @@
     "lint": "eslint src/** test/**",
     "flint": "npm run flow && npm run lint",
     "test": "npm run build && mocha dist/**/*.test.js",
-    "tictactoe": "npm run build && node dist/examples/tictactoe.js"
+    "tictactoe": "npm run build && node dist/examples/tictactoe.js",
+    "trading": "npm run build && node dist/examples/trading.js"
   },
   "devDependencies": {
     "babel-cli": "^6.26.0",

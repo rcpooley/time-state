@@ -1,3 +1,4 @@
+/* eslint-disable no-param-reassign */
 import { expect } from 'chai';
 import TS from './index';
 import { stringOpt, stringOptData } from './testOptions';
@@ -465,16 +466,92 @@ describe('TimeStateFactory', async () => {
             );
         });
 
-        it('should step successfully', async () => {
-            const idxMap = Object.keys(seqIndices).map(tag => seqIndices[tag][0]);
+        const timeExpectMap = {
+            10: {
+                offset: 2,
+                expectChange: [],
+                states: [1],
+            },
+            12: {
+                offset: 1,
+                change: [1],
+            },
+            13: {
+                offset: 2,
+                change: [0, 1],
+            },
+            15: {
+                offset: 2,
+                change: [1, 2],
+            },
+            17: {
+                offset: 3,
+                change: [0],
+            },
+            20: {
+                offset: 1,
+                change: [1],
+                states: [10, 1],
+            },
+            21: {
+                offset: 1,
+                change: [2],
+                states: [11, 2],
+            },
+            22: {
+                offset: 5,
+                expectChange: [],
+                idxMap: [1, 1],
+                states: [1],
+            },
+            27: {
+                offset: 2,
+                change: [2],
+            },
+            29: {
+                offset: 1,
+                change: [2],
+                idxMap: [0, 1],
+                states: [0, 2],
+            },
+            30: {
+                offset: 1,
+                change: [0],
+            },
+            31: {
+                offset: 3,
+                change: [1],
+            },
+            34: {
+                offset: 3,
+                change: [0, 1],
+            },
+            37: {
+                offset: 1,
+                expectChange: [],
+                idxMap: [0, 2],
+                states: [0],
+            },
+            38: {
+                offset: 1,
+                change: [0, 1],
+            },
+            39: {
+                offset: 3,
+                change: [2],
+                states: [2, 10, 11],
+            },
+            42: {
+                offset: 0,
+                expectChange: [],
+                states: [],
+            },
+        };
+
+        const idxMapMap = {}; // map time to idxMap
+        const stateMap = {}; // map time to initialState
+        async function testStepping(stepper, idxMap, initialStates, actualTime) {
             let states = {};
-
-            const stepper = await factory.loadSyncStepper(Object.keys(seqIndices));
-            expect(stepper.startTime).to.equal(10);
-            expect(stepper.endTime).to.equal(42);
-            expect(stepper.time).to.equal(10);
-            expect(stepper.nextChangeOffset).to.equal(2);
-
             const assertStateChange = (obj) => {
                 states = { ...states, ...obj };
                 expect(stepper.state).to.deep.equal(states);
@@ -499,116 +576,93 @@ describe('TimeStateFactory', async () => {
                 expect(await stepper.step()).to.deep.equal(changes);
             };
 
-            assertStateChange({
+            const times = Object.keys(timeExpectMap)
+                .map(t => parseInt(t, 10)).sort((a, b) => a - b);
+
+            let time = 0;
+            times.forEach((t) => {
+                if (actualTime >= t) time = t;
+            });
+
+            expect(stepper.startTime).to.equal(10);
+            expect(stepper.endTime).to.equal(42);
+            assertStateChange(initialStates);
+
+            for (let i = 0; i < times.length; i++) {
+                const t = times[i];
+                if (time !== t) continue;
+
+                idxMapMap[time] = idxMap.slice(0);
+                stateMap[time] = { ...states };
+
+                const data = timeExpectMap[t];
+                if (!data.states) data.states = data.change;
+
+                if (t < actualTime) {
+                    expect(stepper.time).to.equal(actualTime);
+                    expect(stepper.nextChangeOffset)
+                        .to.equal(t + timeExpectMap[t].offset - actualTime);
+                } else {
+                    expect(stepper.time).to.equal(t);
+                    expect(stepper.nextChangeOffset).to.equal(data.offset);
+                }
+
+                if (data.expectChange) {
+                    expect(await stepper.step()).to.deep.equal(data.expectChange);
+                }
+
+                if (data.change) {
+                    await assertChange(...data.change);
+                }
+
+                if (data.idxMap) {
+                    idxMap[data.idxMap[0]] = seqIndices[`seq_${data.idxMap[0]}`][data.idxMap[1]];
+                }
+
+                if (data.states) {
+                    assertStates(...data.states);
+                }
+
+                time += data.offset;
+            }
+
+            expect(stepper.time).to.equal(42);
+            expect(stepper.nextChangeOffset).to.equal(0);
+        }
+
+        it('should step successfully', async () => {
+            const idxMap = Object.keys(seqIndices).map(tag => seqIndices[tag][0]);
+            const states = {
                 seq_0: getState(idxMap[0]++),
                 seq_1: null,
                 seq_2: getState(idxMap[2]++),
-            });
+            };
 
-            // 10 -> 12
-            expect(await stepper.step()).to.deep.equal([]);
-            assertStateChange({ seq_1: getState(idxMap[1]++) });
-            expect(stepper.time).to.equal(12);
-            expect(stepper.nextChangeOffset).to.equal(1);
+            const stepper = await factory.loadSyncStepper(Object.keys(seqIndices));
 
-            // 12 -> 13
-            await assertChange(1);
-            assertStates(1);
-            expect(stepper.time).to.equal(13);
-            expect(stepper.nextChangeOffset).to.equal(2);
+            await testStepping(stepper, idxMap, states, 10);
+        });
 
-            // 13 -> 15
-            await assertChange(0, 1);
-            assertStates(0, 1);
-            expect(stepper.time).to.equal(15);
-            expect(stepper.nextChangeOffset).to.equal(2);
+        it('should set time successfully', async () => {
+            const stepper = await factory.loadSyncStepper(Object.keys(seqIndices));
 
-            // 15 -> 17
-            await assertChange(1, 2);
-            assertStates(1, 2);
-            expect(stepper.time).to.equal(17);
-            expect(stepper.nextChangeOffset).to.equal(3);
-
-            // 17 -> 20
-            await assertChange(0);
-            assertStates(0);
-            expect(stepper.time).to.equal(20);
-            expect(stepper.nextChangeOffset).to.equal(1);
-
-            // 20 -> 21
-            await assertChange(1);
-            assertStates(10, 1);
-            expect(stepper.time).to.equal(21);
-            expect(stepper.nextChangeOffset).to.equal(1);
-
-            // 21 -> 22
-            await assertChange(2);
-            assertStates(11, 2);
-            expect(stepper.time).to.equal(22);
-            expect(stepper.nextChangeOffset).to.equal(5);
-
-            // 22 -> 27
-            expect(await stepper.step()).to.deep.equal([]);
-            idxMap[1] = seqIndices.seq_1[1];
-            assertStates(1);
-            expect(stepper.time).to.equal(27);
-            expect(stepper.nextChangeOffset).to.equal(2);
-
-            // 27 -> 29
-            await assertChange(2);
-            assertStates(2);
-            expect(stepper.time).to.equal(29);
-            expect(stepper.nextChangeOffset).to.equal(1);
-
-            // 29 -> 30
-            await assertChange(2);
-            idxMap[0] = seqIndices.seq_0[1];
-            assertStates(0, 2);
-            expect(stepper.time).to.equal(30);
-            expect(stepper.nextChangeOffset).to.equal(1);
-
-            // 30 -> 31
-            await assertChange(0);
-            assertStates(0);
-            expect(stepper.time).to.equal(31);
-            expect(stepper.nextChangeOffset).to.equal(3);
-
-            // 31 -> 34
-            await assertChange(1);
-            assertStates(1);
-            expect(stepper.time).to.equal(34);
-            expect(stepper.nextChangeOffset).to.equal(3);
-
-            // 34 -> 37
-            await assertChange(0, 1);
-            assertStates(0, 1);
-            expect(stepper.time).to.equal(37);
-            expect(stepper.nextChangeOffset).to.equal(1);
-
-            // 37 -> 38
-            expect(await stepper.step()).to.deep.equal([]);
-            idxMap[0] = seqIndices.seq_0[2];
-            assertStates(0);
-            expect(stepper.time).to.equal(38);
-            expect(stepper.nextChangeOffset).to.equal(1);
-
-            // 38 -> 39
-            await assertChange(0, 1);
-            assertStates(0, 1);
-            expect(stepper.time).to.equal(39);
-            expect(stepper.nextChangeOffset).to.equal(3);
-
-            // 39 -> 42
-            await assertChange(2);
-            assertStates(2, 10, 11);
+            // Go to end of stepper
+            while (stepper.nextChangeOffset > 0) {
+                await stepper.step();
+            }
             expect(stepper.time).to.equal(42);
-            expect(stepper.nextChangeOffset).to.equal(0);
 
-            // 42 -> 42
-            expect(await stepper.step()).to.deep.equal([]);
-            assertStates();
-            expect(stepper.time).to.equal(42);
-            expect(stepper.nextChangeOffset).to.equal(0);
+            let idxMap = idxMapMap[10];
+            let states = stateMap[10];
+            for (let time = 10; time <= 42; time++) {
+                idxMap = idxMapMap[time] || idxMap;
+                states = stateMap[time] || states;
+                if (time > 39) {
+                    states = { ...states, seq_0: null, seq_1: null };
+                }
+                await stepper.setTime(time);
+                await testStepping(stepper, idxMap.slice(0), { ...states }, time);
+            }
         });
     });
 });
