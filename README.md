@@ -20,9 +20,11 @@ const factory = TS.factory({/* options */});
 Each factory requires a [StorageProvider](https://github.com/rcpooley/time-state/blob/master/src/storage/types.js#L19). time-state provides three options:
 
 ##### MongoDB
-time-state will create a single TimeState collection
+time-state will create a timestate and block collection
 ```js
 const storage = await TS.Storage.mongo('mongodb://localhost:27017/testdb');
+// OR provide collection names
+const storage = await TS.Storage.mongo('mongodb://localhost:27017/testdb', 'timestates', 'blocks');
 ```
 
 ##### Memory
