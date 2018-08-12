@@ -1,5 +1,6 @@
 // @flow
 import type { BlockModel } from './storage/types';
+import type { Stepper } from './types';
 
 function getBlockEndTime<S, C>(block: BlockModel<S, C>): number {
     const times = Object.keys(block.changes)
@@ -8,4 +9,8 @@ function getBlockEndTime<S, C>(block: BlockModel<S, C>): number {
     return block.time + times[0];
 }
 
-export default { getBlockEndTime };
+function getStepperPercent<S, C>(stepper: Stepper<S, C>): number {
+    return (stepper.time - stepper.startTime) / (stepper.endTime - stepper.startTime);
+}
+
+export default { getBlockEndTime, getStepperPercent };

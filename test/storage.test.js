@@ -162,11 +162,42 @@ function test(name, dbFunc, func) {
             } catch (err) {
                 expect(err.message).to.equal(`Block not found with id invalid_block in TimeState ${ts.id}`);
             }
+
+            const bId = ObjectId().toString();
+            try {
+                await db.getBlock(ts.id, bId);
+                expect(true, 'should have failed').false;
+            } catch (err) {
+                expect(err.message).to.equal(`Block not found with id ${bId} in TimeState ${ts.id}`);
+            }
+        });
+
+        it('getBlock should work', async () => {
+            for (let i = 0; i < blks.length; i++) {
+                const a = blks[i];
+                const b = await db.getBlock(ts.id, a.id);
+                expect(b.id).to.equal(a.id);
+                expect(b.initialState).to.equal(a.initialState);
+                expect(b.time).to.equal(a.time);
+                expect(b).to.have.property('changes');
+            }
         });
 
         it('should get no time states from getTimeStates', async () => {
             const arr = await db.getTimeStates('random tag');
             expect(arr).to.be.empty;
+        });
+
+        it('getTags should work', async () => {
+            const tags = ['hello', 'how', 'are', 'you', 'doing', 'today'];
+            for (let i = 0; i < 3; i++) {
+                for (let j = 0; j < tags.length; j++) {
+                    await db.createTimeState(100, tags[j]);
+                }
+            }
+            const dbTags = await db.getTags();
+            dbTags.sort();
+            expect(dbTags).to.deep.equal(tags.sort());
         });
 
         it('should create time states with tags', async () => {
@@ -249,6 +280,16 @@ let cleanup;
 test('Storage - memory', () => Storage.memory());
 test('Storage - mongo', async () => {
     const d = await testDB();
+    cleanup = d.cleanup;
+    return new Storage(d.db);
+}, () => {
+    it('should cleanup db', async () => {
+        await cleanup();
+    });
+});
+
+test('Storage - oldMongo', async () => {
+    const d = await testDB(true);
     cleanup = d.cleanup;
     return new Storage(d.db);
 }, () => {

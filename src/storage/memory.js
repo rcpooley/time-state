@@ -83,6 +83,15 @@ class Memory<S, C> implements Storage<S, C> {
         }
         return arr;
     }
+
+    async getTags(): Promise<Array<string>> {
+        const tags = [];
+        Object.keys(this.timeStates).forEach((id) => {
+            const ts = this.timeStates[id];
+            if (!tags.includes(ts.tag) && !!ts.tag) tags.push(ts.tag);
+        });
+        return tags;
+    }
 }
 
 export default Memory;

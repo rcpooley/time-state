@@ -7,7 +7,6 @@ const { Schema } = mongoose;
 const { ObjectId } = mongoose.Types;
 
 const blockSchema = new Schema({
-    tsId: Schema.Types.ObjectId,
     initialState: Schema.Types.Mixed,
     time: Number,
     changes: Schema.Types.Mixed,
@@ -17,22 +16,19 @@ const timeStateSchema = new Schema({
     tag: String,
     startTime: Number,
     endTime: Number,
+    blocks: [blockSchema],
 });
 
-class Mongo<S, C> implements Storage<S, C> {
+class OldMongo<S, C> implements Storage<S, C> {
     conn: mongoose.Connection;
 
     Block: mongoose.Model;
 
     TimeState: mongoose.Model;
 
-    static async connect(
-        connUrl: string,
-        timeStateCollection?: string = 'TimeState',
-        blockCollection?: string = 'Block',
-    ): Promise<Mongo<S, C>> {
-        const db = new Mongo();
-        await db.init(connUrl, timeStateCollection, blockCollection);
+    static async connect(connUrl: string): Promise<OldMongo<S, C>> {
+        const db = new OldMongo();
+        await db.init(connUrl);
         return db;
     }
 
@@ -44,14 +40,14 @@ class Mongo<S, C> implements Storage<S, C> {
         }
     }
 
-    init(connUrl: string, timeStateCollection: string, blockCollection: string): Promise<void> {
+    init(connUrl: string): Promise<void> {
         return new Promise((resolve, reject) => {
             this.conn = mongoose.createConnection(connUrl, { useNewUrlParser: true }, (err) => {
                 if (err) {
                     reject(err);
                 } else {
-                    this.Block = this.conn.model(blockCollection, blockSchema);
-                    this.TimeState = this.conn.model(timeStateCollection, timeStateSchema);
+                    this.Block = this.conn.model('Block', blockSchema);
+                    this.TimeState = this.conn.model('TimeState', timeStateSchema);
                     resolve();
                 }
             });
@@ -63,6 +59,7 @@ class Mongo<S, C> implements Storage<S, C> {
             tag,
             startTime: time,
             endTime: time,
+            blocks: [],
         });
         const obj = ts.toObject();
         return {
@@ -70,89 +67,84 @@ class Mongo<S, C> implements Storage<S, C> {
             tag: obj.tag,
             startTime: obj.startTime,
             endTime: obj.endTime,
-            blocks: [],
+            blocks: obj.blocks,
         };
     }
 
     async addBlock(timeStateId: string, block: BlockModel<S, C>): Promise<BlockModel<S, C>> {
-        const tsId = Mongo.getId(timeStateId);
-        const blk: any = { ...block, tsId, _id: ObjectId() };
+        const blk: any = { ...block };
+        blk._id = ObjectId();
 
-        // Make sure block's time = last block's endTime
-        const lastBlock = (await this.Block.find({ tsId }).sort({ time: -1 }).limit(1))[0];
-        if (lastBlock) {
-            const endTime = Util.getBlockEndTime(lastBlock);
+        const tsId = OldMongo.getId(timeStateId);
+
+        const book = await this.TimeState.aggregate([
+            { $match: { _id: tsId } },
+            { $unwind: '$blocks' },
+            { $sort: { 'blocks.time': -1 } },
+            { $group: { _id: '$_id', block: { $first: '$blocks' } } },
+            { $limit: 1 },
+        ]);
+        if (book.length > 0) {
+            const b = book[0].block;
+            const endTime = Util.getBlockEndTime(b);
             if (endTime !== block.time) {
                 throw new Error(`Cannot add block because starting time ${block.time} does not match previous block's ending time ${endTime}`);
             }
         }
 
-        // Update TimeState endTime
         const res = await this.TimeState.update(
             { _id: tsId },
-            { $set: { endTime: Util.getBlockEndTime(block) } },
+            {
+                $push: { blocks: blk },
+                $set: { endTime: Util.getBlockEndTime(block) },
+            },
         );
         if (res.n !== 1 || res.nModified !== 1 || res.ok !== 1) {
             throw new Error(`TimeState not found with id ${timeStateId}`);
         }
 
-        const newBlock = (await this.Block.create(blk)).toObject();
-
-        return {
-            id: newBlock._id.toString(),
-            initialState: newBlock.initialState,
-            time: newBlock.time,
-            changes: newBlock.changes,
-        };
+        const ret = { ...block };
+        ret.id = blk._id.toString();
+        return ret;
     }
 
     async getTimeState(timeStateId: string): Promise<TimeStateModel<S, C>> {
-        const ts = await this.TimeState.findById(Mongo.getId(timeStateId));
+        const ts = await this.TimeState.findById(OldMongo.getId(timeStateId), { 'blocks.changes': 0 });
         if (!ts) {
             throw new Error(`TimeState not found with id ${timeStateId}`);
         }
         const obj = ts.toObject();
-
-        const blocks = await this.Block.find({ tsId: ts._id }, { changes: 0 });
-
         return {
             id: obj._id.toString(),
             tag: obj.tag,
             startTime: obj.startTime,
             endTime: obj.endTime,
-            blocks: blocks.map((b) => {
-                const o = b.toObject();
-                return {
-                    id: o._id.toString(),
-                    initialState: o.initialState,
-                    time: o.time,
-                };
+            blocks: obj.blocks.map((b) => {
+                const blk = { ...b };
+                blk.id = blk._id.toString();
+                delete blk._id;
+                return blk;
             }),
         };
     }
 
     async getBlock(timeStateId: string, blockId: string): Promise<BlockModel<S, C>> {
         const msg = `Block not found with id ${blockId} in TimeState ${timeStateId}`;
-
-        const tsId = Mongo.getId(timeStateId);
-        const bId = Mongo.getId(blockId, msg);
-
-        const blk = (await this.Block.find({ _id: bId, tsId }))[0];
-        if (!blk) {
+        const res = await this.TimeState.find(
+            { _id: OldMongo.getId(timeStateId), 'blocks._id': OldMongo.getId(blockId, msg) },
+            { 'blocks.$': 1 },
+        );
+        if (res.length === 0) {
             throw new Error(msg);
         }
-
-        const obj = blk.toObject();
-        return {
-            id: blk._id.toString(),
-            initialState: obj.initialState,
-            time: obj.time,
-            changes: obj.changes,
-        };
+        const obj = res[0].blocks[0].toObject();
+        const id = obj._id.toString();
+        delete obj._id;
+        return { ...obj, id };
     }
 
     async getTimeStates(tag: string): Promise<Array<TimeStateModel<S, C>>> {
-        const arr = await this.TimeState.find({ tag });
+        const arr = await this.TimeState.find({ tag }, { blocks: 0 });
         return arr.map((ts) => {
             const clone = { ...ts.toObject() };
             clone.id = clone._id.toString();
@@ -168,4 +160,4 @@ class Mongo<S, C> implements Storage<S, C> {
     }
 }
 
-export default Mongo;
+export default OldMongo;

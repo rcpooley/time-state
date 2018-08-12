@@ -1,12 +1,22 @@
 // @flow
+import OldMongo from './oldMongo';
 import Mongo from './mongo';
 import Memory from './memory';
 import Dummy from './dummy';
 import type { BlockModel, Storage, TimeStateModel } from './types';
 
 class StorageProvider<S, C> implements Storage<S, C> {
-    static async mongo(connUrl: string): Promise<StorageProvider<S, C>> {
-        const db = await Mongo.connect(connUrl);
+    static async oldMongo(connUrl: string): Promise<StorageProvider<S, C>> {
+        const db = await OldMongo.connect(connUrl);
+        return new StorageProvider(db);
+    }
+
+    static async mongo(
+        connUrl: string,
+        timeStateCollection?: string,
+        blockCollection?: string,
+    ): Promise<StorageProvider<S, C>> {
+        const db = await Mongo.connect(connUrl, timeStateCollection, blockCollection);
         return new StorageProvider(db);
     }
 
@@ -57,6 +67,10 @@ class StorageProvider<S, C> implements Storage<S, C> {
             throw new Error(`Invalid tag: ${tag}`);
         }
         return this.provider.getTimeStates(tag);
+    }
+
+    getTags(): Promise<Array<string>> {
+        return this.provider.getTags();
     }
 }
 

@@ -40,3 +40,19 @@ export interface TimeStateFactory<S, C> {
     loadSequence(timeStateTag: string): Promise<Stepper<S, C>>;
     loadSyncStepper(tags: Array<string>): Promise<Stepper<StateMap<S>, ChangeMap<C>>>;
 }
+
+export type MigrateStatus = Array<[string, number]> // Array<[stage, percent]>
+
+export interface Migrator {
+    timeState(
+        timeStateId: string,
+        newTag: string,
+        status?: (MigrateStatus) => any
+    ): Promise<string>; // returns new timeStateId
+
+    sequence(
+        oldTag: string,
+        newTag: string,
+        status: (MigrateStatus) => any
+    ): Promise<Array<string>>; // returns new timeStateIds
+}
