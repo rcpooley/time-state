@@ -58,6 +58,10 @@ class TimeStateImpl<S, C> implements TimeState<S, C> {
             throw new Error('Cannot emit change on a closed timeState');
         }
 
+        if (time < this.time) {
+            throw new Error(`Requested change time ${time} is less than timeState time ${this.time}`);
+        }
+
         let offset = time - this.curBlock.time;
 
         if (

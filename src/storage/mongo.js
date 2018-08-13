@@ -92,7 +92,7 @@ class Mongo<S, C> implements Storage<S, C> {
             { _id: tsId },
             { $set: { endTime: Util.getBlockEndTime(block) } },
         );
-        if (res.n !== 1 || res.nModified !== 1 || res.ok !== 1) {
+        if (res.n !== 1 || res.ok !== 1) {
             throw new Error(`TimeState not found with id ${timeStateId}`);
         }
 

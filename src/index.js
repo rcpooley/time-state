@@ -51,6 +51,7 @@ function migrate<S, C>(
     oldStorage: Storage<S, C>,
     newStorage: Storage<S, C>,
     newChangeThreshold: number,
+    updatePercentThresh?: number,
 ): Migrator {
     const factoryA = factory({
         reducer,
@@ -65,6 +66,7 @@ function migrate<S, C>(
         storageProvider: newStorage,
         changeThreshold: newChangeThreshold,
     });
+    const percentThresh = updatePercentThresh || 0.1;
 
     async function timeState(
         timeStateId: string,
@@ -76,12 +78,24 @@ function migrate<S, C>(
             ['stepping', 0],
             ['verifying', 0],
         ];
-        const percentThresh = 0.1;
         let lastPercent = 0;
         if (cb) cb(status);
 
+        const oldTs = await oldStorage.getTimeState(timeStateId);
+        if (oldTs.blocks.length === 0) {
+            throw new Error(`Cannot migrate timeState ${timeStateId} with 0 blocks`);
+        }
+        const firstBlock = await oldStorage.getBlock(timeStateId, oldTs.blocks[0].id);
+
+        const newTs = await factoryB.create(firstBlock.initialState, firstBlock.time, newTag);
+        if ('0' in firstBlock.changes) {
+            const ch = firstBlock.changes['0'];
+            for (let i = 0; i < ch.length; i++) {
+                await newTs.change(ch[i], firstBlock.time);
+            }
+        }
+
         const stepper = await factoryA.load(timeStateId);
-        const newTs = await factoryB.create(stepper.state, stepper.time, newTag);
         while (stepper.nextChangeOffset > 0) {
             const changes = await stepper.step();
             for (let i = 0; i < changes.length; i++) {
@@ -98,6 +112,8 @@ function migrate<S, C>(
             }
         }
         await newTs.stop();
+        status[0][1] = 1;
+        if (cb) cb(status);
 
         // Verify
         lastPercent = 0;
@@ -122,6 +138,8 @@ function migrate<S, C>(
         expect(stepper.time).to.equal(newStepper.time);
         expect(checksum(stepper.state)).to.equal(checksum(newStepper.state));
         expect(stepper.nextChangeOffset).to.equal(newStepper.nextChangeOffset);
+        status[1][1] = 1;
+        if (cb) cb(status);
 
         return newTs.id;
         /* eslint-enable no-await-in-loop */

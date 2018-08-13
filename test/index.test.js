@@ -182,6 +182,26 @@ describe('TimeStateFactory', async () => {
             expect(b.changes[0]).to.deep.equal([[0, 'j'], [4, 'a']]);
             expect(b.changes[5]).to.deep.equal([[1, 'a']]);
         });
+
+        it('should error on negative time', async () => {
+            const ats = await factory.create('hello', 1000);
+            try {
+                await ats.change([0, 'j'], 999);
+                expect(true, 'should have failed').false;
+            } catch (err) {
+                expect(err.message).to.equal('Requested change time 999 is less than timeState time 1000');
+            }
+
+            for (let time = 1010; time <= 1110; time += 10) {
+                await ats.change([0, 'a'], time);
+                try {
+                    await ats.change([1, 'b'], time - 5);
+                    expect(true, 'should have failed').false;
+                } catch (err) {
+                    expect(err.message).to.equal(`Requested change time ${time - 5} is less than timeState time ${time}`);
+                }
+            }
+        });
     });
 
     describe('TimeStateStepper', () => {
@@ -294,6 +314,35 @@ describe('TimeStateFactory', async () => {
                 expect(true, 'should have failed').false;
             } catch (err) {
                 expect(err.message).to.equal('Cannot create a stepper with no chunks to step through');
+            }
+        });
+
+        it('should step with 0 time change', async () => {
+            const ts = await factory.create('hello', 1000);
+            await ts.change([0, 'j'], 1000);
+            await ts.change([4, 'a'], 1000);
+            await ts.stop();
+            const stepper = await factory.load(ts.id);
+            expect(stepper.state).to.equal('jella');
+            expect(stepper.startTime).to.equal(1000);
+            expect(stepper.endTime).to.equal(1000);
+            expect(stepper.time).to.equal(1000);
+            expect(stepper.nextChangeOffset).to.equal(0);
+        });
+
+        it('should set time with 0 time change', async () => {
+            const ats = await factory.create('hello', 1000);
+            await ats.change([0, 'j'], 1000);
+            await ats.stop();
+            const stepper = await factory.load(ats.id);
+            for (let i = 0; i < 4; i++) {
+                expect(stepper.startTime).to.equal(1000);
+                expect(stepper.endTime).to.equal(1000);
+                expect(stepper.time).to.equal(1000);
+                expect(stepper.nextChangeOffset).to.equal(0);
+                expect(stepper.state).to.equal('jello');
+                await stepper.step();
+                if (i % 2 === 1) await stepper.setTime(1000);
             }
         });
     });
@@ -417,6 +466,24 @@ describe('TimeStateFactory', async () => {
             expect(atss.state).to.equal('qqvqq');
             expect(atss.time).to.equal(109);
             expect(atss.nextChangeOffset).to.equal(0);
+        });
+
+        it('should step with 0 time change', async () => {
+            const ts1 = await getSampleTimeState(factory, 100, 200, 1000, 'seqtest2');
+            const ts2 = await getSampleTimeState(factory, 300, 400, ts1.lastChangeTime + 1000, 'seqtest2');
+            const emptyTime = ts2.lastChangeTime + 1000;
+            const empty = await factory.create('hello', emptyTime, 'seqtest2');
+            await empty.change([0, 'j'], emptyTime);
+            await empty.stop();
+            await getSampleTimeState(factory, 500, 600, emptyTime + 1000, 'seqtest2');
+            const stepper = await factory.loadSequence('seqtest2');
+            while (stepper.time !== ts2.lastChangeTime) await stepper.step();
+            expect(await stepper.step()).to.deep.equal([]);
+            expect(stepper.state).to.equal('jello');
+            expect(stepper.time).to.equal(emptyTime);
+            expect(await stepper.step()).to.deep.equal([]);
+            expect(stepper.time).to.equal(emptyTime + 1000);
+            while (stepper.nextChangeOffset !== 0) await stepper.step();
         });
     });
 

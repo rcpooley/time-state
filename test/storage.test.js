@@ -288,6 +288,17 @@ function test(name, dbFunc, func) {
             expect(states).to.have.lengthOf(5);
         });
 
+        it('should addBlock with 0 change time', async () => {
+            const ats = await db.createTimeState(1000, 'buzz');
+            await db.addBlock(ats.id, {
+                initialState: 'hello',
+                time: 1000,
+                changes: {
+                    0: [[0, 'j']],
+                },
+            });
+        });
+
         if (func) func();
     });
 }

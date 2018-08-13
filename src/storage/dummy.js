@@ -35,6 +35,10 @@ class Dummy<S, C> implements Storage<S, C> {
     async getTimeStates(tag: string) {
         throw new Error('Cannot call getTimeStates on dummy storage provider');
     }
+
+    async getTags() {
+        throw new Error('Cannot call getTimeStates on dummy storage provider');
+    }
 }
 /* eslint-enable class-methods-use-this, no-unused-vars */
 

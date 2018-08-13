@@ -82,12 +82,34 @@ class StepperImpl<S, C> implements Stepper<S, C> {
             return [];
         }
 
+        const safeNextChunk = async () => {
+            if (this.nextChangeOffset === 0) {
+                try {
+                    const cont = await this.nextChunk();
+                    if (cont) {
+                        this.nextChangeOffset = this.curChunk.nextChangeOffset;
+                    }
+                } catch (err) {
+                    if (this.skipChecksum) {
+                        this.nextChangeOffset = this.curChunk.time - this.time;
+                        this.stepToChunk = true;
+                        if (this.nextChangeOffset === 0) {
+                            return await this.step();
+                        }
+                    } else {
+                        throw err;
+                    }
+                }
+            }
+            return null;
+        };
+
         if (this.stepToChunk) {
             this.stepToChunk = false;
             this.state = this.curChunk.state;
             this.time = this.curChunk.time;
             this.nextChangeOffset = this.curChunk.nextChangeOffset;
-            return [];
+            return (await safeNextChunk()) || [];
         }
 
         const changes = await this.curChunk.step();
@@ -95,26 +117,7 @@ class StepperImpl<S, C> implements Stepper<S, C> {
         this.time = this.curChunk.time;
         this.nextChangeOffset = this.curChunk.nextChangeOffset;
 
-        if (this.nextChangeOffset === 0) {
-            try {
-                const cont = await this.nextChunk();
-                if (cont) {
-                    this.nextChangeOffset = this.curChunk.nextChangeOffset;
-                }
-            } catch (err) {
-                if (this.skipChecksum) {
-                    this.nextChangeOffset = this.curChunk.time - this.time;
-                    this.stepToChunk = true;
-                    if (this.nextChangeOffset === 0) {
-                        return await this.step();
-                    }
-                } else {
-                    throw err;
-                }
-            }
-        }
-
-        return changes;
+        return (await safeNextChunk()) || changes;
     }
 
     // assume start <= end and start/end in bounds of [0, blocks.length - 1]
@@ -151,6 +154,7 @@ class StepperImpl<S, C> implements Stepper<S, C> {
             && this.time < this.endTime) {
             await this.step(); // eslint-disable-line no-await-in-loop
         }
+        if (this.nextChangeOffset === 0) await this.step();
     }
 }
 
