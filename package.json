@@ -1,6 +1,6 @@
 {
   "name": "time-state",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "description": "A node package for keeping track of some state across time",
   "repository": "https://github.com/rcpooley/time-state",
   "keywords": [],
