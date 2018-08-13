@@ -299,6 +299,25 @@ function test(name, dbFunc, func) {
             });
         });
 
+        it('should getTimeStates in order', async () => {
+            const ats = await db.createTimeState(2000, 'test-order');
+            await db.addBlock(ats.id, {
+                initialState: 'hello',
+                time: 2000,
+                changes: { 0: [0, 'j'] },
+            });
+            const bts = await db.createTimeState(1000, 'test-order');
+            await db.addBlock(bts.id, {
+                initialState: 'hello',
+                time: 2000,
+                changes: { 0: [0, 'j'] },
+            });
+            const states = await db.getTimeStates('test-order');
+            expect(states).to.have.lengthOf(2);
+            expect(states[0].id).to.equal(bts.id);
+            expect(states[1].id).to.equal(ats.id);
+        });
+
         if (func) func();
     });
 }

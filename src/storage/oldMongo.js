@@ -170,7 +170,8 @@ class OldMongo<S, C> implements Storage<S, C> {
                 tag: ts.tag,
                 startTime: ts.startTime,
                 endTime: ts.endTime,
-            }));
+            }))
+            .sort((a, b) => a.startTime - b.startTime);
     }
 
     async getTags(): Promise<Array<string>> {

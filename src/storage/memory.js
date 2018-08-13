@@ -85,7 +85,7 @@ class Memory<S, C> implements Storage<S, C> {
                 }
             }
         }
-        return arr;
+        return arr.sort((a, b) => a.startTime - b.startTime);
     }
 
     async getTags(): Promise<Array<string>> {

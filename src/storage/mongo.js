@@ -176,7 +176,9 @@ class Mongo<S, C> implements Storage<S, C> {
             return clone;
         });
 
-        return objs.filter(obj => atLeastOne.includes(obj.id));
+        return objs
+            .filter(obj => atLeastOne.includes(obj.id))
+            .sort((a, b) => a.startTime - b.startTime);
     }
 
     async getTags(): Promise<Array<string>> {
