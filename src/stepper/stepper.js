@@ -41,6 +41,10 @@ class StepperImpl<S, C> implements Stepper<S, C> {
         this.data = data;
         this.options = options;
         if (skipChecksum) this.skipChecksum = true;
+
+        if (data.numChunks === 0) {
+            throw new Error('Cannot create a stepper with no chunks to step through');
+        }
     }
 
     async init() {

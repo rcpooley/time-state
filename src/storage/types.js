@@ -34,6 +34,7 @@ export interface Storage<S, C> {
 
     // Returns an array of timeStates with the provided tag
     // Each timeState will not have 'blocks' property
+    // Also deletes any timeStates with no blocks
     getTimeStates(tag: string): Promise<Array<TimeStateModel<S, C>>>;
 
     // Returns an array of all the tags saved

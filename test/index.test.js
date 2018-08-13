@@ -286,6 +286,16 @@ describe('TimeStateFactory', async () => {
             expect(atss.state).to.equal('jalla');
             expect(atss.nextChangeOffset).to.equal(0);
         });
+
+        it('should fail on timeState with no blocks', async () => {
+            const ts = await storage.createTimeState(100, 'test');
+            try {
+                await factory.load(ts.id);
+                expect(true, 'should have failed').false;
+            } catch (err) {
+                expect(err.message).to.equal('Cannot create a stepper with no chunks to step through');
+            }
+        });
     });
 
     describe('TimeStateSequence', () => {
@@ -300,7 +310,10 @@ describe('TimeStateFactory', async () => {
                 if (i !== 4) timeMap[test.lastChangeTime].offset = 1000;
                 timeRanges.push([time, test.lastChangeTime]);
                 time = test.lastChangeTime + 1000;
+                // create empty timeState
+                if (i < 4) await storage.createTimeState(time - 500, 'sequence-test');
             }
+
 
             tss = await factory.loadSequence('sequence-test');
             expect(tss.startTime).to.equal(1000);

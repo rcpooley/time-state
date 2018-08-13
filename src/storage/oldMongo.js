@@ -144,13 +144,33 @@ class OldMongo<S, C> implements Storage<S, C> {
     }
 
     async getTimeStates(tag: string): Promise<Array<TimeStateModel<S, C>>> {
-        const arr = await this.TimeState.find({ tag }, { blocks: 0 });
-        return arr.map((ts) => {
-            const clone = { ...ts.toObject() };
-            clone.id = clone._id.toString();
-            delete clone._id;
-            return clone;
-        });
+        const arr = await this.TimeState.aggregate([
+            { $match: { tag } },
+            {
+                $project: {
+                    tag: 1,
+                    startTime: 1,
+                    endTime: 1,
+                    numBlocks: { $size: '$blocks' },
+                },
+            },
+        ]);
+
+        // Delete empty timeStates
+        const empty = arr.filter(o => o.numBlocks === 0);
+        if (empty.length > 0) {
+            const emptyIds = empty.map(o => o._id);
+            await this.TimeState.deleteMany({ _id: { $in: emptyIds } });
+        }
+
+        return arr
+            .filter(o => o.numBlocks > 0)
+            .map(ts => ({
+                id: ts._id.toString(),
+                tag: ts.tag,
+                startTime: ts.startTime,
+                endTime: ts.endTime,
+            }));
     }
 
     async getTags(): Promise<Array<string>> {

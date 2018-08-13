@@ -77,8 +77,12 @@ class Memory<S, C> implements Storage<S, C> {
             const ts = this.timeStates[ids[i]];
             if (ts.tag === tag) {
                 const clone = { ...ts };
-                delete clone.blocks;
-                arr.push(clone);
+                if (clone.blocks.length === 0) {
+                    delete this.timeStates[ids[i]];
+                } else {
+                    delete clone.blocks;
+                    arr.push(clone);
+                }
             }
         }
         return arr;

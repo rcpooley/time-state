@@ -272,6 +272,22 @@ function test(name, dbFunc, func) {
             });
         });
 
+        it('getTimeStates should delete empty blocks', async () => {
+            for (let i = 0; i < 5; i++) {
+                await db.createTimeState(i * 100, 'deltest');
+                const ats = await db.createTimeState(i * 100 + 50, 'deltest');
+                await db.addBlock(ats.id, {
+                    initialState: 'hi',
+                    time: i * 100 + 50,
+                    changes: {
+                        1: 'a',
+                    },
+                });
+            }
+            const states = await db.getTimeStates('deltest');
+            expect(states).to.have.lengthOf(5);
+        });
+
         if (func) func();
     });
 }

@@ -153,12 +153,30 @@ class Mongo<S, C> implements Storage<S, C> {
 
     async getTimeStates(tag: string): Promise<Array<TimeStateModel<S, C>>> {
         const arr = await this.TimeState.find({ tag });
-        return arr.map((ts) => {
+
+        const allIds = arr.map(o => o._id);
+
+        const numBlocks = await this.Block.aggregate([
+            { $match: { tsId: { $in: allIds } } },
+            { $group: { _id: '$tsId' } },
+        ]);
+        const atLeastOne = numBlocks.map(o => o._id.toString());
+        const empty = arr.filter(obj => !atLeastOne.includes(obj._id.toString()));
+
+        // Delete empty timeStates
+        if (empty.length > 0) {
+            const emptyIds = empty.map(o => o._id);
+            await this.TimeState.deleteMany({ _id: { $in: emptyIds } });
+        }
+
+        const objs = arr.map((ts) => {
             const clone = { ...ts.toObject() };
             clone.id = clone._id.toString();
             delete clone._id;
             return clone;
         });
+
+        return objs.filter(obj => atLeastOne.includes(obj.id));
     }
 
     async getTags(): Promise<Array<string>> {
